@@ -14,7 +14,7 @@ def generate_target(regressors, weights, sigma):
     return np.dot(regressors, weights) + noise
 
 
-def standarsize(X):
+def standardize(X):
     means = X.mean(axis=0)
     stds = X.mean(axis=0)
     return (X - means)/stds
