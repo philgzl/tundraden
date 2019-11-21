@@ -1,7 +1,5 @@
 import numpy as np
 
-from .models import LinearRegression
-
 
 def r2(y_true, y_pred):
     total_sq_sum = np.sum((y_true - y_true.mean())**2)
@@ -16,12 +14,11 @@ def vif(y_true, y_pred):
 def partial_r2(X):
     n_vars = X.shape[1]
     r2s = np.zeros(n_vars)
-    model = LinearRegression()
     for i in range(n_vars):
         X_ = np.delete(X, i, 1)
         Y_ = X[:, i]
-        model.fit(X_, Y_)
-        Y_pred = model.predict(X_)
+        coefs = np.linalg.inv(X_.T.dot(X_)).dot(X_.T).dot(Y_)
+        Y_pred = X_.dot(coefs)
         r2s[i] = r2(Y_, Y_pred)
     return r2s
 
@@ -29,11 +26,10 @@ def partial_r2(X):
 def partial_vif(X):
     n_vars = X.shape[1]
     vifs = np.zeros(n_vars)
-    model = LinearRegression()
     for i in range(n_vars):
         X_ = np.delete(X, i, 1)
         Y_ = X[:, i]
-        model.fit(X_, Y_)
-        Y_pred = model.predict(X_)
+        coefs = np.linalg.inv(X_.T.dot(X_)).dot(X_.T).dot(Y_)
+        Y_pred = X_.dot(coefs)
         vifs[i] = vif(Y_, Y_pred)
     return vifs
