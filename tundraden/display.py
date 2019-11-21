@@ -1,5 +1,7 @@
 import matplotlib.pyplot as plt
 
+from . import tsa
+
 
 def pairplot(X, var_names=None, scatter_kws=None, hist_kws=None,
              grid_kws=None):
@@ -28,3 +30,13 @@ def pairplot(X, var_names=None, scatter_kws=None, hist_kws=None,
                 plt.xlabel(var_names[i])
             if i == 0:
                 plt.ylabel(var_names[i])
+
+
+def acf(x, lags=40):
+    acf_ = tsa.acf(x, lags)
+    plt.stem(acf_, use_line_collection=True)
+
+
+def pacf(x, lags=40):
+    pacf_ = tsa.pacf(x, lags)
+    plt.stem(pacf_, use_line_collection=True)
