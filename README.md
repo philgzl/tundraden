@@ -1,5 +1,5 @@
 # tundraden
-Analysis and visualization of correlated data from scratch. `tundraden` is an anagram of "redundant".
+Analysis and visualization of correlated data from scratch. "tundraden" is an anagram of "redundant".
 
 ## Motivation
 
