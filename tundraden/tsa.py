@@ -20,7 +20,8 @@ def acf(x, lags=40):
 
 def pacf(x, lags=40):
     '''
-    Probably extremely inefficient. The Levinson recursion might be better.
+    Inspired from https://stats.stackexchange.com/a/129374.
+    Probably inefficient. The Levinson recursion might be better.
     '''
     output = np.zeros(min(lags, len(x)-1))
     acf_ = acf(x, lags)
