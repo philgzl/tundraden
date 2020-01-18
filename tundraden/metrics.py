@@ -10,19 +10,49 @@ def r2(y_true, y_pred):
     return explained_sq_sum/total_sq_sum
 
 
+def pearson(x, y, center=True, normalize=True):
+    '''
+    Pearson correlation coefficient.
+
+    Parameters:
+        x:
+            Firt series.
+        y:
+            Second series.
+        center:
+            Wether to substract the series mean before the calculation, as if
+            the data was not pre-centered.
+        normalize:
+            Wether to divide the series by their standard deviation before the
+            calculation, as if the data was not pre-centered.
+
+    Returns:
+        r_xy:
+            The Pearson correlation coefficent between the two series.
+    '''
+    if center:
+        x = x-x.mean()
+        y = y-y.mean()
+    if normalize:
+        x = x/x.std()
+        y = y/y.std()
+    return np.mean(x*y)
+
+
 def vif(*args):
     '''
     Variance inflation factor.
     https://en.wikipedia.org/wiki/Variance_inflation_factor
 
     Two uses cases:
-    - vif(y_true, y_pred): Computes the single VIF factor of the result of a
-                           linear regression model giving `y_pred` as the
-                           estimate of `y_true`. `y_true` and `y_pred` must
-                           be 1-dimensional and have the same length.
-    - vif(X): Computes a VIF factor for each regressor in `X`, as described in
-              https://en.wikipedia.org/wiki/Variance_inflation_factor#Calculation_and_analysis.
-              `X` is a 2-dimensional array with size `n_samples*n_regressors`.
+        vif(y_true, y_pred):
+            Computes the single VIF factor of the result of a linear regression
+            model giving `y_pred` as the estimate of `y_true`. `y_true` and
+            `y_pred` must be 1-dimensional and have the same length.
+        vif(X):
+            Computes a VIF factor for each regressor in `X`, as described in
+            https://en.wikipedia.org/wiki/Variance_inflation_factor#Calculation_and_analysis.
+            `X` is a 2-dimensional array with size `n_samples*n_regressors`.
     '''
     if len(args) == 2:
         y_true, y_pred = args
@@ -47,17 +77,22 @@ def partial_r2(X, Y, i=None):
     Coefficient of partial determination.
     https://en.wikipedia.org/wiki/Coefficient_of_determination#Coefficient_of_partial_determination
 
-    Inputs:
-    - `X`: Regressors or independent variables, with size
-           `n_samples*n_regressors`.
-    - `Y`: Target or dependent variable, with size `size n_samples*1`.
-    - `i`: Index of the variable in X for which to compute the coefficient of
-           partial determination. If none is provided, then it is calculated
-           for every regressor in X.
-    Outputs:
-    - `r2s`: Coefficient(s) of partial determination. If `i` is `None`, `r2s`
-             is an array containing `n_regressors` values. Otherwise it is just
-             one float.
+    Parameters:
+        X:
+            Regressors or independent variables, with size
+            `n_samples*n_regressors`.
+        Y:
+            Target or dependent variable, with size `size n_samples*1`.
+        i:
+            Index of the variable in X for which to compute the coefficient of
+            partial determination. If none is provided, then it is calculated
+            for every regressor in X.
+
+    Returns:
+        r2s:
+            Coefficient(s) of partial determination. If `i` is `None`, `r2s` is
+            an array containing `n_regressors` values. Otherwise it is just one
+            float.
     '''
     if isinstance(i, int):
         coefs_full = np.linalg.inv(X.T.dot(X)).dot(X.T).dot(Y)
