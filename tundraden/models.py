@@ -8,11 +8,16 @@ class LinearRegression:
     def __init__(self, fit_intercept=False):
         self.fit_intercept = fit_intercept
         self.coef = None
+        self.r2 = None
 
     def fit(self, X, Y):
         if self.fit_intercept:
             X = add_intercept(X)
         self.coef = np.linalg.inv(X.T.dot(X)).dot(X.T).dot(Y)
+        Y_hat = X.dot(self.coef)
+        tss = np.sum((Y-Y.mean())**2)
+        rss = np.sum((Y-Y_hat)**2)
+        self.r2 = 1-rss/tss
 
     def predict(self, X):
         if self.fit_intercept:

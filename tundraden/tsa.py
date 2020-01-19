@@ -2,6 +2,8 @@ import numpy as np
 import scipy.signal
 import scipy.linalg
 
+from . import utils
+
 
 def generate_arma_samples(ar, ma, n_samples, sigma=1):
     '''
@@ -81,7 +83,7 @@ def generate_varma_samples(AR, MA, n_samples, Sigma=None):
     return samples
 
 
-def ccf(x, y, lags=40, center=True, normalize=True):
+def ccf(x, y, lags=40, standardize=True):
     '''
     Cross-correlation function or cross-covariance function.
 
@@ -92,24 +94,19 @@ def ccf(x, y, lags=40, center=True, normalize=True):
             Second time series.
         lags:
             Maximum lag to compute the cross-correlation for.
-        center:
-            Wether to substract the series mean before the cross-covariance and
-            variances calculation, as if the data was not pre-centered.
-        normalize:
-            Wether to divide the series by their standard deviation before the
-            cross-covariance and variances calculation, as if the data was not
-            pre-normalized.
+        standardize:
+            Wether to standardize the series before the cross-covariance and
+            variances calculation. You should set this to `False` only if you
+            know the data comes from a zero-mean and unit-variance
+            distribution.
 
     Returns:
         ccf:
             Cross-correlation or cross-covariance values. Length `lags+1`.
     '''
-    if center:
-        x = x-x.mean()
-        y = y-y.mean()
-    if normalize:
-        x = x/x.std()
-        y = y/y.std()
+    if standardize:
+        x = utils.standardize(x)
+        y = utils.standardize(y)
     ccf = np.zeros(min(len(y), lags+1))
     n = max(len(x), len(y))
     for i in range(len(ccf)):
@@ -120,7 +117,7 @@ def ccf(x, y, lags=40, center=True, normalize=True):
     return ccf
 
 
-def acf(x, lags=40, center=True, normalize=True):
+def acf(x, lags=40, standardize=True):
     '''
     Autocorrelation function. Matches default behavior of its R equivalent.
 
@@ -129,22 +126,20 @@ def acf(x, lags=40, center=True, normalize=True):
             The time series.
         lags:
             Maximum lag to compute the autocorrelation for.
-        center:
-            Wether to substract the series mean before the cross-covariance and
-            variance calculation, as if the data was not pre-centered.
-        normalize:
-            Wether to divide the series by its standard deviation before the
-            cross-covariance and variance calculation, as if the data was not
-            pre-normalized.
+        standardize:
+            Wether to standardize the series before the cross-covariance and
+            variances calculation. You should set this to `False` only if you
+            know the data comes from a zero-mean and unit-variance
+            distribution.
 
     Returns:
         acf:
             Autocorrelation values. Length `lags+1`.
     '''
-    return ccf(x, x, lags, center, normalize)
+    return ccf(x, x, lags, standardize)
 
 
-def pacf(x, lags=40):
+def pacf(x, lags=40, standardize=True):
     '''
     Partial autocorrelation function. Matches default behavior of its R
     equivalent.
@@ -153,7 +148,7 @@ def pacf(x, lags=40):
     inefficient. The Levinson recursion might be better.
     '''
     pacf = np.zeros(min(lags, len(x)-1))
-    acf_ = acf(x, lags)
+    acf_ = acf(x, lags, standardize)
     R = scipy.linalg.toeplitz(acf_[:-1])
     for i in range(len(pacf)):
         pacf[i] = scipy.linalg.solve(R[:i+1, :i+1], acf_[1:i+2])[-1]

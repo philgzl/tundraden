@@ -1,16 +1,19 @@
 import numpy as np
 
+from . import utils
+from .models import LinearRegression
+
 
 def r2(y_true, y_pred):
     '''
     Coefficient of determination.
     '''
-    total_sq_sum = np.sum((y_true - y_true.mean())**2)
-    explained_sq_sum = np.sum((y_pred - y_true.mean())**2)
-    return explained_sq_sum/total_sq_sum
+    rss = np.sum((y_true - y_pred)**2)
+    tss = np.sum((y_true - y_true.mean())**2)
+    return 1-rss/tss
 
 
-def pearson(x, y, center=True, normalize=True):
+def pearson(x, y, standardize=True):
     '''
     Pearson correlation coefficient.
 
@@ -19,23 +22,19 @@ def pearson(x, y, center=True, normalize=True):
             Firt series.
         y:
             Second series.
-        center:
-            Wether to substract the series mean before the calculation, as if
-            the data was not pre-centered.
-        normalize:
-            Wether to divide the series by their standard deviation before the
-            calculation, as if the data was not pre-centered.
+        standardize:
+            Wether to standardize the series before the cross-covariance and
+            variances calculation. You should set this to `False` only if you
+            know the data comes from a zero-mean and unit-variance
+            distribution.
 
     Returns:
         r_xy:
             The Pearson correlation coefficent between the two series.
     '''
-    if center:
-        x = x-x.mean()
-        y = y-y.mean()
-    if normalize:
-        x = x/x.std()
-        y = y/y.std()
+    if standardize:
+        x = utils.standardize(x)
+        y = utils.standardize(y)
     return np.mean(x*y)
 
 
@@ -95,19 +94,88 @@ def partial_r2(X, Y, i=None):
             float.
     '''
     if isinstance(i, int):
-        coefs_full = np.linalg.inv(X.T.dot(X)).dot(X.T).dot(Y)
-        Y_pred_full = X.dot(coefs_full)
-        SS_res_full = np.sum((Y - Y_pred_full)**2)
-        X_red = np.delete(X, i, 1)
-        coefs_red = np.linalg.inv(X_red.T.dot(X_red)).dot(X_red.T).dot(Y)
-        Y_pred_red = X_red.dot(coefs_red)
-        SS_res_red = np.sum((Y - Y_pred_red)**2)
-        return (SS_res_red - SS_res_full)/SS_res_red
+        lm_full = LinearRegression(fit_intercept=True)
+        lm_full.fit(X, Y)
+        lm_red = LinearRegression(fit_intercept=True)
+        lm_red.fit(np.delete(X, i, 1), Y)
+        return (lm_full.r2 - lm_red.r2)#/(1-lm_red.r2)
     elif i is None:
         n_vars = X.shape[1]
         r2s = np.zeros(n_vars)
         for i in range(n_vars):
             r2s[i] = partial_r2(X, Y, i)
         return r2s
+    else:
+        raise ValueError('i must be either None or an integer')
+
+
+def _partial_correlation(X, Y, Z, method='recursive'):
+    if method == 'recursive':
+        if Z.shape[1] == 0:
+            return pearson(X, Y)
+        else:
+            Z0 = Z[:, 0]
+            Z = Z[:, 1:]
+            r_xy_z = _partial_correlation(X, Y, Z)
+            r_xz0_z = _partial_correlation(X, Z0, Z)
+            r_yz0_z = _partial_correlation(Z0, Y, Z)
+            return (r_xy_z - r_xz0_z*r_yz0_z)/((1-r_xz0_z**2)**0.5 * (1-r_yz0_z**2)**0.5)
+    elif method == 'linear_regression':
+        lm = LinearRegression(fit_intercept=True)
+        lm.fit(Z, X)
+        e_x = X - lm.predict(Z)
+        lm.fit(Z, Y)
+        e_y = Y - lm.predict(Z)
+        return pearson(e_x, e_y)
+    else:
+        raise ValueError('method must be either recursive or linear_regression')
+
+
+def partial_correlation(X, Y, i=None, method='recursive'):
+    if isinstance(i, int):
+        Z = np.delete(X, i, 1)
+        X = X[:, i]
+        return _partial_correlation(X, Y, Z, method)
+    elif i is None:
+        n_vars = X.shape[1]
+        pcorrs = np.zeros(n_vars)
+        for i in range(n_vars):
+            pcorrs[i] = partial_correlation(X, Y, i, method)
+        return pcorrs
+    else:
+        raise ValueError('i must be either None or an integer')
+
+
+def _semipartial_correlation(X, Y, Z, method='recursive'):
+    if method == 'recursive':
+        if Z.shape[1] == 0:
+            return pearson(X, Y)
+        else:
+            Z0 = Z[:, 0]
+            Z = Z[:, 1:]
+            r_xy_z = _semipartial_correlation(X, Y, Z)
+            r_xz0_z = _semipartial_correlation(X, Z0, Z)
+            r_yz0_z = _semipartial_correlation(Z0, Y, Z)
+            return (r_xy_z - r_xz0_z*r_yz0_z)/((1-r_xz0_z**2)**0.5)
+    elif method == 'linear_regression':
+        lm = LinearRegression(fit_intercept=True)
+        lm.fit(Z, X)
+        e_x = X - lm.predict(Z)
+        return pearson(e_x, Y)
+    else:
+        raise ValueError('method must be either recursive or linear_regression')
+
+
+def semipartial_correlation(X, Y, i=None, method='recursive'):
+    if isinstance(i, int):
+        Z = np.delete(X, i, 1)
+        X = X[:, i]
+        return _semipartial_correlation(X, Y, Z, method)
+    elif i is None:
+        n_vars = X.shape[1]
+        spcorrs = np.zeros(n_vars)
+        for i in range(n_vars):
+            spcorrs[i] = semipartial_correlation(X, Y, i, method)
+        return spcorrs
     else:
         raise ValueError('i must be either None or an integer')
