@@ -71,10 +71,9 @@ def vif(*args):
         raise ValueError('vif takes either 1 or 2 arguments')
 
 
-def partial_r2(X, Y, i=None):
+def partial_r2(X, Y, i=None, semi=False, method='direct', correlation_method='linear_regression'):
     '''
-    Coefficient of partial determination.
-    https://en.wikipedia.org/wiki/Coefficient_of_determination#Coefficient_of_partial_determination
+    Partial coefficient of determination.
 
     Parameters:
         X:
@@ -86,6 +85,19 @@ def partial_r2(X, Y, i=None):
             Index of the variable in X for which to compute the coefficient of
             partial determination. If none is provided, then it is calculated
             for every regressor in X.
+        semi:
+            Wether to compute a squared partial correlation or a squared
+            semipartial correlation, i.e. a fraction of squared residuals or a
+            fraction of variance in `Y`.
+        method:
+            'direct':
+                Uses the coefficients of determination from the reduced and
+                full models.
+            'correlation':
+                Computes the squared (semi)partial correlation.
+        correlation_method:
+            Method for (semi)partial correlation calculation. Only used if
+            `method` is 'correlation'.
 
     Returns:
         r2s:
@@ -93,89 +105,77 @@ def partial_r2(X, Y, i=None):
             an array containing `n_regressors` values. Otherwise it is just one
             float.
     '''
-    if isinstance(i, int):
-        lm_full = LinearRegression(fit_intercept=True)
-        lm_full.fit(X, Y)
-        lm_red = LinearRegression(fit_intercept=True)
-        lm_red.fit(np.delete(X, i, 1), Y)
-        return (lm_full.r2 - lm_red.r2)#/(1-lm_red.r2)
-    elif i is None:
-        n_vars = X.shape[1]
-        r2s = np.zeros(n_vars)
-        for i in range(n_vars):
-            r2s[i] = partial_r2(X, Y, i)
-        return r2s
+    if method == 'direct':
+        if isinstance(i, int):
+            if method == 'direct':
+                lm_full = LinearRegression(fit_intercept=True)
+                lm_full.fit(X, Y)
+                lm_red = LinearRegression(fit_intercept=True)
+                lm_red.fit(np.delete(X, i, 1), Y)
+                if semi:
+                    return (lm_full.r2 - lm_red.r2)
+                else:
+                    return (lm_full.r2 - lm_red.r2)/(1-lm_red.r2)
+        elif i is None:
+            n_vars = X.shape[1]
+            r2s = np.zeros(n_vars)
+            for i in range(n_vars):
+                r2s[i] = partial_r2(X, Y, i, semi, method, correlation_method)
+            return r2s
+        else:
+            raise ValueError('i must be either None or an integer')
+    elif method == 'correlation':
+        return partial_correlation(X, Y, i, correlation_method, semi)**2
     else:
-        raise ValueError('i must be either None or an integer')
+        raise ValueError('method must be either direct or correlation')
 
 
-def _partial_correlation(X, Y, Z, method='recursive'):
+def _partial_correlation(X, Y, Z, method='linear_regression', semi=False):
     if method == 'recursive':
         if Z.shape[1] == 0:
             return pearson(X, Y)
         else:
             Z0 = Z[:, 0]
             Z = Z[:, 1:]
-            r_xy_z = _partial_correlation(X, Y, Z)
-            r_xz0_z = _partial_correlation(X, Z0, Z)
-            r_yz0_z = _partial_correlation(Z0, Y, Z)
-            return (r_xy_z - r_xz0_z*r_yz0_z)/((1-r_xz0_z**2)**0.5 * (1-r_yz0_z**2)**0.5)
+            r_xy_z = _partial_correlation(X, Y, Z, method, semi)
+            r_xz0_z = _partial_correlation(X, Z0, Z, method, semi)
+            r_yz0_z = _partial_correlation(Z0, Y, Z, method, semi)
+            if semi:
+                return (r_xy_z - r_xz0_z*r_yz0_z)/((1-r_xz0_z**2)**0.5)
+            else:
+                return (r_xy_z - r_xz0_z*r_yz0_z)/((1-r_xz0_z**2)**0.5 * (1-r_yz0_z**2)**0.5)
     elif method == 'linear_regression':
         lm = LinearRegression(fit_intercept=True)
         lm.fit(Z, X)
         e_x = X - lm.predict(Z)
         lm.fit(Z, Y)
         e_y = Y - lm.predict(Z)
-        return pearson(e_x, e_y)
+        if semi:
+            return pearson(e_x, Y)
+        else:
+            return pearson(e_x, e_y)
     else:
         raise ValueError('method must be either recursive or linear_regression')
 
 
-def partial_correlation(X, Y, i=None, method='recursive'):
+def partial_correlation(X, Y, i=None, method='linear_regression', semi=False):
     if isinstance(i, int):
         Z = np.delete(X, i, 1)
         X = X[:, i]
-        return _partial_correlation(X, Y, Z, method)
+        return _partial_correlation(X, Y, Z, method, semi)
     elif i is None:
         n_vars = X.shape[1]
         pcorrs = np.zeros(n_vars)
         for i in range(n_vars):
-            pcorrs[i] = partial_correlation(X, Y, i, method)
+            pcorrs[i] = partial_correlation(X, Y, i, method, semi)
         return pcorrs
     else:
         raise ValueError('i must be either None or an integer')
 
 
-def _semipartial_correlation(X, Y, Z, method='recursive'):
-    if method == 'recursive':
-        if Z.shape[1] == 0:
-            return pearson(X, Y)
-        else:
-            Z0 = Z[:, 0]
-            Z = Z[:, 1:]
-            r_xy_z = _semipartial_correlation(X, Y, Z)
-            r_xz0_z = _semipartial_correlation(X, Z0, Z)
-            r_yz0_z = _semipartial_correlation(Z0, Y, Z)
-            return (r_xy_z - r_xz0_z*r_yz0_z)/((1-r_xz0_z**2)**0.5)
-    elif method == 'linear_regression':
-        lm = LinearRegression(fit_intercept=True)
-        lm.fit(Z, X)
-        e_x = X - lm.predict(Z)
-        return pearson(e_x, Y)
-    else:
-        raise ValueError('method must be either recursive or linear_regression')
+def _semipartial_correlation(X, Y, Z, method='linear_regression'):
+    return _partial_correlation(X, Y, Z, method, semi=True)
 
 
-def semipartial_correlation(X, Y, i=None, method='recursive'):
-    if isinstance(i, int):
-        Z = np.delete(X, i, 1)
-        X = X[:, i]
-        return _semipartial_correlation(X, Y, Z, method)
-    elif i is None:
-        n_vars = X.shape[1]
-        spcorrs = np.zeros(n_vars)
-        for i in range(n_vars):
-            spcorrs[i] = semipartial_correlation(X, Y, i, method)
-        return spcorrs
-    else:
-        raise ValueError('i must be either None or an integer')
+def semipartial_correlation(X, Y, i=None, method='linear_regression'):
+    return partial_correlation(X, Y, i, method, semi=True)
