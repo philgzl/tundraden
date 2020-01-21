@@ -5,7 +5,7 @@ from .cv import leave_one_out_split, kfold_split
 
 
 class LinearRegression:
-    def __init__(self, fit_intercept=False):
+    def __init__(self, fit_intercept=True):
         self.fit_intercept = fit_intercept
         self.coef = None
         self.r2 = None
@@ -26,7 +26,7 @@ class LinearRegression:
 
 
 class RidgeRegression:
-    def __init__(self, lambda_, fit_intercept=False):
+    def __init__(self, lambda_, fit_intercept=True):
         self.lambda_ = lambda_
         self.fit_intercept = fit_intercept
         self.coef = None
@@ -49,7 +49,7 @@ class RidgeRegression:
 
 
 class RidgeCV:
-    def __init__(self, lambda_grid=None, fit_intercept=False, cv=None):
+    def __init__(self, lambda_grid=None, fit_intercept=True, cv=None):
         if lambda_grid is None:
             lambda_grid = np.linspace(0.1, 1, 10)
         if cv is not None and not isinstance(cv, int):
@@ -98,7 +98,7 @@ class RidgeCV:
 
 
 class NestedRidgeCV:
-    def __init__(self, lambda_grid=None, fit_intercept=False, outer_cv=5,
+    def __init__(self, lambda_grid=None, fit_intercept=True, outer_cv=5,
                  inner_cv=10):
         if lambda_grid is None:
             lambda_grid = np.linspace(0.1, 1, 10)

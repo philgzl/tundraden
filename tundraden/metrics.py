@@ -1,4 +1,5 @@
 import numpy as np
+import warnings
 
 from . import utils
 from .models import LinearRegression
@@ -60,12 +61,12 @@ def vif(*args):
         X = args[0]
         n_vars = X.shape[1]
         vifs = np.zeros(n_vars)
+        lm = LinearRegression()
         for i in range(n_vars):
             X_ = np.delete(X, i, 1)
             Y_ = X[:, i]
-            coefs = np.linalg.inv(X_.T.dot(X_)).dot(X_.T).dot(Y_)
-            Y_pred = X_.dot(coefs)
-            vifs[i] = vif(Y_, Y_pred)
+            lm.fit(X_, Y_)
+            vifs[i] = lm.r2
         return vifs
     else:
         raise ValueError('vif takes either 1 or 2 arguments')
@@ -108,9 +109,9 @@ def partial_r2(X, Y, i=None, semi=False, method='direct', correlation_method='li
     if method == 'direct':
         if isinstance(i, int):
             if method == 'direct':
-                lm_full = LinearRegression(fit_intercept=True)
+                lm_full = LinearRegression()
                 lm_full.fit(X, Y)
-                lm_red = LinearRegression(fit_intercept=True)
+                lm_red = LinearRegression()
                 lm_red.fit(np.delete(X, i, 1), Y)
                 if semi:
                     return (lm_full.r2 - lm_red.r2)
@@ -131,7 +132,18 @@ def partial_r2(X, Y, i=None, semi=False, method='direct', correlation_method='li
 
 
 def _partial_correlation(X, Y, Z, method='linear_regression', semi=False):
+    '''
+    If semi, X is the residualized variable, not Y!
+    '''
     if method == 'recursive':
+        if semi:
+            warnings.warn((
+                'The "recursive" method for semipartial correlation can lead '
+                'to wrong results. The "linear_regression" method should be '
+                'prefered. Search for "A comment on correctly calculating '
+                'higher order semipartial correlations" by Bush et al. for a '
+                'more detailed explanation.'
+                ))
         if Z.shape[1] == 0:
             return pearson(X, Y)
         else:
@@ -139,13 +151,13 @@ def _partial_correlation(X, Y, Z, method='linear_regression', semi=False):
             Z = Z[:, 1:]
             r_xy_z = _partial_correlation(X, Y, Z, method, semi)
             r_xz0_z = _partial_correlation(X, Z0, Z, method, semi)
-            r_yz0_z = _partial_correlation(Z0, Y, Z, method, semi)
+            r_z0y_z = _partial_correlation(Z0, Y, Z, method, semi)
             if semi:
-                return (r_xy_z - r_xz0_z*r_yz0_z)/((1-r_xz0_z**2)**0.5)
+                return (r_xy_z - r_xz0_z*r_z0y_z)/((1-r_xz0_z**2)**0.5)
             else:
-                return (r_xy_z - r_xz0_z*r_yz0_z)/((1-r_xz0_z**2)**0.5 * (1-r_yz0_z**2)**0.5)
+                return (r_xy_z - r_xz0_z*r_z0y_z)/((1-r_xz0_z**2)**0.5 * (1-r_z0y_z**2)**0.5)
     elif method == 'linear_regression':
-        lm = LinearRegression(fit_intercept=True)
+        lm = LinearRegression()
         lm.fit(Z, X)
         e_x = X - lm.predict(Z)
         lm.fit(Z, Y)
