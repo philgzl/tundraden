@@ -17,3 +17,7 @@ def correlation_matrix(X):
 
 def add_intercept(X):
     return np.hstack((np.ones((X.shape[0], 1)), X))
+
+
+def ReLU(x):
+    return x * (x > 0)
