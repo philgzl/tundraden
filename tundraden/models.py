@@ -1,6 +1,7 @@
 import numpy as np
+import warnings
 
-from .utils import add_intercept
+from .utils import add_intercept, soft_thresholding
 from .cv import leave_one_out_split, kfold_split
 
 
@@ -15,9 +16,9 @@ class LinearRegression:
             X = add_intercept(X)
         self.coef = np.linalg.inv(X.T.dot(X)).dot(X.T).dot(Y)
         Y_hat = X.dot(self.coef)
-        tss = np.sum((Y-Y.mean())**2)
-        rss = np.sum((Y-Y_hat)**2)
-        self.r2 = 1-rss/tss
+        TSS = np.sum((Y-Y.mean())**2)
+        RSS = np.sum((Y-Y_hat)**2)
+        self.r2 = 1-RSS/TSS
 
     def predict(self, X):
         if self.fit_intercept:
@@ -26,7 +27,7 @@ class LinearRegression:
 
 
 class RidgeRegression:
-    def __init__(self, lambda_, fit_intercept=True):
+    def __init__(self, lambda_=1, fit_intercept=True):
         self.lambda_ = lambda_
         self.fit_intercept = fit_intercept
         self.coef = None
@@ -35,7 +36,8 @@ class RidgeRegression:
     def fit(self, X, Y):
         if self.fit_intercept:
             X = add_intercept(X)
-        self.coef = np.linalg.inv(X.T.dot(X) + self.lambda_*np.identity(X.shape[1])).dot(X.T).dot(Y)
+        self.coef = (np.linalg.inv(X.T.dot(X)
+                     + self.lambda_*np.identity(X.shape[1])).dot(X.T).dot(Y))
 
     def predict(self, X):
         if self.fit_intercept:
@@ -53,7 +55,8 @@ class RidgeCV:
         if lambda_grid is None:
             lambda_grid = np.linspace(0.1, 1, 10)
         if cv is not None and not isinstance(cv, int):
-            raise ValueError("'cv' should be either 'None' for leave-one-out CV or an int for k-fold CV")
+            raise ValueError(("cv should be either None for leave-one-out or "
+                              "an int for k-fold"))
         self.lambda_grid = lambda_grid
         self.fit_intercept = fit_intercept
         self.cv = cv
@@ -84,7 +87,8 @@ class RidgeCV:
         self.lambda_ = self.lambda_grid[best_lambda_idx]
         if self.fit_intercept:
             X = add_intercept(X)
-        self.coef = np.linalg.inv(X.T.dot(X) + self.lambda_*np.identity(X.shape[1])).dot(X.T).dot(Y)
+        self.coef = (np.linalg.inv(X.T.dot(X)
+                     + self.lambda_*np.identity(X.shape[1])).dot(X.T).dot(Y))
 
     def predict(self, X):
         if self.fit_intercept:
@@ -103,11 +107,11 @@ class NestedRidgeCV:
         if lambda_grid is None:
             lambda_grid = np.linspace(0.1, 1, 10)
         if inner_cv is not None and not isinstance(inner_cv, int):
-            raise ValueError(''''inner_cv' should be either 'None' for
-                             leave-one-out CV or an int for k-fold CV''')
+            raise ValueError(("inner_cv should be either None for "
+                              "leave-one-out CV or an int for k-fold"))
         if outer_cv is not None and not isinstance(outer_cv, int):
-            raise ValueError(''''outer_cv' should be either 'None' for
-                             leave-one-out CV or an int for k-fold CV''')
+            raise ValueError(("outer_cv should be either None for "
+                              "leave-one-out CV or an int for k-fold"))
         self.inner_cv = inner_cv
         self.outer_cv = outer_cv
         self.lambda_grid = lambda_grid
@@ -145,3 +149,52 @@ class NestedRidgeCV:
     @property
     def lambdas(self):
         return [model.lambda_ for model in self.models]
+
+
+class LassoRegression:
+    def __init__(self, lambda_=1, fit_intercept=True, max_iter=100, tol=0.001,
+                 learn_rate=0.01, save_steps=False):
+        self.lambda_ = lambda_
+        self.fit_intercept = fit_intercept
+        self.coef = None
+        self.test_error = None
+        self.max_iter = max_iter
+        self.tol = tol
+        self.learn_rate = learn_rate
+        self.save_steps = save_steps
+        self.steps = []
+
+    def fit(self, X, Y):
+        self.steps = []
+        if self.fit_intercept:
+            X = add_intercept(X)
+        self.coef = np.zeros(X.shape[1])
+        if self.fit_intercept:
+            self.coef[0] = Y.mean()
+        if self.save_steps:
+            self.steps.append(self.coef)
+        learn_rate = self.learn_rate/X.shape[1]
+        for i in range(self.max_iter):
+            prev_coef = self.coef
+            ols_grad = -2*X.T.dot(Y-X.dot(self.coef))
+            self.coef = soft_thresholding(self.coef - learn_rate*ols_grad,
+                                          self.learn_rate*self.lambda_)
+            step = prev_coef-self.coef
+            if self.save_steps:
+                self.steps.append(self.coef)
+            if (i != 0 and
+                    np.linalg.norm(step)/np.linalg.norm(prev_coef) < self.tol):
+                break
+        if i == self.max_iter-1:
+            warnings.warn('Max iteration reached!')
+        self.steps = np.array(self.steps)
+
+    def predict(self, X):
+        if self.fit_intercept:
+            X = add_intercept(X)
+        return X.dot(self.coef)
+
+    def test(self, X, Y):
+        Y_pred = self.predict(X)
+        self.test_error = np.mean((Y - Y_pred)**2)
+        return self.test_error

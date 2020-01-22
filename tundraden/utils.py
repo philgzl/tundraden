@@ -21,3 +21,7 @@ def add_intercept(X):
 
 def ReLU(x):
     return x * (x > 0)
+
+
+def soft_thresholding(x, lambda_):
+    return np.sign(lambda_)*ReLU(np.abs(x)-lambda_)
